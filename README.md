@@ -1,2 +1,253 @@
 # irys-type
 a file which can let irys type task easy
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function triggerInput(input, value) {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    const inputEvent = new Event('input', { bubbles: true });
+    const keydownEvent = new KeyboardEvent('keydown', { key: value[value.length - 1] || ' ', bubbles: true });
+    const keyupEvent = new KeyboardEvent('keyup', { key: value[value.length - 1] || ' ', bubbles: true });
+
+    nativeInputValueSetter.call(input, value);
+    input.dispatchEvent(inputEvent);
+    input.dispatchEvent(keydownEvent);
+    input.dispatchEvent(keyupEvent);
+}
+
+function triggerBackspace(input, value) {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    const backspaceEvent = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true });
+    const inputEvent = new Event('input', { bubbles: true });
+    const keyupEvent = new KeyboardEvent('keyup', { key: 'Backspace', bubbles: true });
+
+    nativeInputValueSetter.call(input, value);
+    input.dispatchEvent(backspaceEvent);
+    input.dispatchEvent(inputEvent);
+    input.dispatchEvent(keyupEvent);
+}
+
+function clickElement(element) {
+    if (element && !element.disabled) {
+        try {
+            element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window }));
+            element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+            element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+            element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            console.log(`✅ 点击元素: ${element.textContent.trim()}`);
+            return true;
+        } catch (e) {
+            console.log(`❌ 点击失败: ${e.message}`);
+            return false;
+        }
+    }
+    return false;
+}
+
+function triggerSingleTab() {
+    const el = document.activeElement;
+    if (el) {
+        el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true}));
+        el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true}));
+    }
+}
+
+function findButton(text) {
+    const buttons = document.querySelectorAll('button');
+    return Array.from(buttons).find(btn => btn.textContent.includes(text));
+}
+
+async function waitForInputFocusAndNewWord(maxAttempts = 10) {
+    let attempts = 0;
+    while (attempts < maxAttempts) {
+        const input = document.querySelector('input[type="text"]');
+        const wordElems = document.querySelectorAll('div[class*="text-"]');
+        const activeWord = Array.from(wordElems).find(el =>
+            el.innerText.trim().length > 0 &&
+            window.getComputedStyle(el).color === 'rgb(255, 255, 255)'
+        );
+
+        if (input && document.activeElement === input && activeWord) {
+            return true;
+        }
+        triggerSingleTab();
+        await sleep(250);
+        attempts++;
+    }
+    return false;
+}
+
+async function triggerDoubleTab() {
+    triggerSingleTab();
+    await sleep(100);
+    triggerSingleTab();
+}
+
+function randomWrongChar() {
+    return String.fromCharCode(97 + Math.floor(Math.random() * 26));
+}
+
+// ✅ 参数配置
+const ERROR_PROB = 0.05;  // 5% 每个字符可能出错
+const FIX_PROB = 0.66;     // 60% 的错误会修正
+let submitCount = 0;
+
+// ✅ 添加浮动计数器
+function showCounter() {
+    let counter = document.getElementById('submit-counter');
+    if (!counter) {
+        counter = document.createElement('div');
+        counter.id = 'submit-counter';
+        counter.style.position = 'fixed';
+        counter.style.top = '10px';
+        counter.style.right = '10px';
+        counter.style.background = 'rgba(0,0,0,0.7)';
+        counter.style.color = '#fff';
+        counter.style.padding = '8px 12px';
+        counter.style.fontSize = '16px';
+        counter.style.borderRadius = '8px';
+        counter.style.zIndex = '9999';
+        document.body.appendChild(counter);
+    }
+    counter.innerText = `✅ 提交次数: ${submitCount}`;
+}
+
+showCounter();
+
+// ✅ 随机运行总时长（40~130分钟）
+const maxRunTime = (40 + Math.random() * 90) * 60 * 1000; 
+const startTime = Date.now();
+
+// ✅ 随机休息逻辑
+async function maybeTakeBreak() {
+    if (Math.random() < 0.01) {  // 10% 概率检查
+        const breakDuration = (1 + Math.random() * 2) * 60 * 1000; // 1-3分钟
+        console.log(`⏸ 模拟休息 ${Math.round(breakDuration / 1000)} 秒`);
+        await sleep(breakDuration);
+    }
+}
+
+while (true) {
+    if (Date.now() - startTime > maxRunTime) {
+        console.log("✅ 已运行到最大时间，脚本停止");
+        break;
+    }
+
+    await sleep(1000 + Math.random() * 2500);
+
+    const input = document.querySelector('input[type="text"]');
+    if (!input) {
+        await sleep(700);
+        continue;
+    }
+
+    input.focus();
+    input.click();
+
+    const submitButton = findButton('Submit to Leaderboard');
+    if (submitButton) {
+        while (!clickElement(submitButton)) await sleep(1000);
+        await sleep(1000 + Math.random() * 2000); // 1~3秒随机等待
+
+        submitCount++;
+        showCounter();
+
+        const playAgainButton = findButton('Play Again');
+        if (playAgainButton) {
+            while (!clickElement(playAgainButton)) await sleep(600);
+            console.log(`✅ 点击元素: ${playAgainButton.textContent.trim()}`);
+            await sleep(2000 + Math.random() * 8000);
+            await waitForInputFocusAndNewWord();
+            triggerSingleTab();
+            continue;
+        }
+    }
+
+    const wordElems = document.querySelectorAll('div[class*="text-"]');
+    const activeWord = Array.from(wordElems).find(el =>
+        el.innerText.trim().length > 0 &&
+        window.getComputedStyle(el).color === 'rgb(255, 255, 255)'
+    );
+
+    if (!activeWord) {
+        await sleep(500);
+        continue;
+    }
+
+    await sleep(300 + Math.random() * 300);
+
+    const word = activeWord.innerText.trim();
+    console.log(`📝 正在输入: ${word}`);
+
+    let current = '';
+    let i = 0;
+
+    while (i < word.length) {
+        const errorRoll = Math.random();
+
+        if (errorRoll < ERROR_PROB) {
+            const fixRoll = Math.random();
+            if (fixRoll < FIX_PROB) {
+                // 自动改正
+                if (Math.random() < 0.5) {
+                    i++;
+                    await sleep(150 + Math.random() * 150);
+                    continue;
+                } else {
+                    const wrongChar = randomWrongChar();
+                    current += wrongChar;
+                    triggerInput(input, current);
+                    await sleep(150 + Math.random() * 100);
+                    current = current.slice(0, -1);
+                    triggerBackspace(input, current);
+                    await sleep(200 + Math.random() * 200);
+                    current += word[i];
+                    triggerInput(input, current);
+                    await sleep(150 + Math.random() * 80);
+                    i++;
+                    continue;
+                }
+            } else {
+                // 不改正
+                if (Math.random() < 0.5) {
+                    i++;
+                    await sleep(150 + Math.random() * 100);
+                    continue;
+                } else {
+                    const wrongChar = randomWrongChar();
+                    current += wrongChar;
+                    triggerInput(input, current);
+                    await sleep(150 + Math.random() * 100);
+                    i++;
+                    continue;
+                }
+            }
+        }
+
+        current += word[i];
+        triggerInput(input, current);
+        await sleep(140 + Math.random() * 100);
+        i++;
+    }
+
+    current += ' ';
+    triggerInput(input, current);
+    await sleep(200 + Math.random() * 150);
+
+    if (wordElems.length === 1) {
+        await triggerDoubleTab();
+        await sleep(900);
+
+        const playAgainButton = findButton('Play Again');
+        if (playAgainButton) {
+            while (!clickElement(playAgainButton)) await sleep(600);
+            await sleep(2000 + Math.random() * 8000);
+            await waitForInputFocusAndNewWord();
+            triggerSingleTab();
+        }
+    }
+
+    await maybeTakeBreak();  // 检查是否需要休息
+    await sleep(500 + Math.random() * 300);
+}
